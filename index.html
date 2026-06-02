@@ -448,6 +448,12 @@ function renderToday(){
 function renderCourse(){
   var h="";
 
+  // 列印所有標籤按鈕
+  if(courses.filter(function(c){return!courseStatus(c).expired;}).length){
+    h+='<div style="display:flex;justify-content:flex-end;margin-bottom:4px">';
+    h+='<button class="btn btn-blue" onclick="printAllCourseLabels()">🏷 列印所有藥袋標籤（A4 剪貼用）</button>';
+    h+='</div>';
+  }
   // Add form
   h+='<div class="card">';
   h+='<div class="sec-h">📅 新增療程記錄</div>';
@@ -1520,14 +1526,16 @@ function printCourseLabel(cid){
     +"@media print{.no-print{display:none}}</style></head><body>"
     +"<h2>臺北市廣慈托嬰中心　藥袋標籤</h2>"
     +"<div class='label'>"
-    +"<div class='qr-area'><div id='qr-label'></div><div class='scan-hint'>給藥前掃描</div><div class='qr-code-id'>COURSE:"+c.id+"</div></div>"
+    +"<div class='qr-area'><div id='qr-label'>"+labelSvg+"</div><div class='scan-hint'>給藥前掃描</div><div class='qr-code-id'>COURSE:"+c.id+"</div></div>"
     +"<div class='info'>"
     +"<div class='info-name'>"+escH(c.studentName)+"</div>"
     +"<div style='font-size:8.5pt;color:#6B7280;margin-bottom:1.5mm'>"+escH(c.cls)+"</div>"
     +"<div class='info-row'>💊 <strong>"+escH(mn)+"</strong>"+(c.dose&&c.unit!="不適用"?" "+c.dose+c.unit:"")+"</div>"
+    +(c.hasPowder?"<div class='info-row'>🧂 含藥粉"+(c.powderNote?" — "+escH(c.powderNote):"")+"</div>":"")
+    +(c.hasTopical?"<div class='info-row'>🧴 外用藥"+(c.topicalNote?" — "+escH(c.topicalNote):"")+"</div>":"")
+    +(c.cold?"<div class='warn'>❄ 須冷藏</div>":"")
     +"<div class='info-row'>⏰ "+escH(slotL)+"　"+escH(c.route)+"</div>"
     +"<div class='info-row'>📋 看診日："+rocDateStr(c.visitDate)+"　醫囑 "+c.days+" 天</div>"
-    +(c.cold?"<div class='warn'>❄ 須冷藏</div>":"")
     +"<div class='days'>在校給藥日：<br>"+schoolDaysHtml+"</div>"
     +"</div></div>"
     +"<div class='no-print' style='text-align:center;margin-top:5mm'>"
@@ -1535,6 +1543,54 @@ function printCourseLabel(cid){
     +"</div>"
     +"<\/body><\/html>");
 
+  w.document.close();w.focus();
+}
+
+function printAllCourseLabels(){
+  var active=courses.filter(function(c){return!courseStatus(c).expired;});
+  if(!active.length){alert("目前無有效療程記錄");return;}
+  var items="";
+  active.forEach(function(c){
+    var st=courseStatus(c);
+    var mn=c.medName||(c.hasPowder&&c.hasTopical?"藥粉+外用":c.hasPowder?"藥粉":c.hasTopical?"外用":"");
+    var slotL=c.slots.map(function(k){var s=SLOTS.find(function(x){return x.k===k;});return s?s.l:k;}).join("、");
+    var qrSvg=genQRSvg("COURSE:"+c.id,180);
+    if(!qrSvg)qrSvg='<div style="font-size:5pt;word-break:break-all;padding:2px">COURSE:'+c.id+'</div>';
+    var daysHtml=st.calc.schoolDays.map(function(d,i){
+      var isPast=d<TODAY,isT=d===TODAY;
+      return'<span style="display:inline-block;padding:1px 4px;border-radius:8px;margin:1px;font-size:6pt;background:'+(isT?'#EEF2FF':isPast?'#f3f4f6':'#E8F5EE')+';color:'+(isT?'#7C3AED':isPast?'#9CA3AF':'#15803d')+'">'+(i+1)+'. '+rocDateStr(d)+'</span>';
+    }).join("");
+    items+='<div class="lbl">';
+    items+='<div class="lbl-qr">'+qrSvg+'<div style="font-size:5.5pt;color:#6B7280;text-align:center;margin-top:1mm">給藥前掃描</div></div>';
+    items+='<div class="lbl-info">';
+    items+='<div style="font-size:11pt;font-weight:700;color:#1A4B7C;margin-bottom:1mm">'+escH(c.studentName)+' <span style="font-size:8pt;font-weight:400;color:#888">'+escH(c.cls)+'</span></div>';
+    items+='<div style="font-size:8.5pt;margin-bottom:0.8mm">💊 <strong>'+escH(mn)+'</strong>'+(c.dose&&c.unit!="不適用"?" "+c.dose+c.unit:"")+'</div>';
+    if(c.hasPowder)items+='<div style="font-size:8pt;margin-bottom:0.5mm">🧂 含藥粉'+(c.powderNote?" — "+escH(c.powderNote):"")+'</div>';
+    if(c.hasTopical)items+='<div style="font-size:8pt;margin-bottom:0.5mm">🧴 外用藥'+(c.topicalNote?" — "+escH(c.topicalNote):"")+'</div>';
+    if(c.cold)items+='<div style="font-size:8pt;color:#B45309;margin-bottom:0.5mm">❄ 須冷藏</div>';
+    items+='<div style="font-size:8pt;margin-bottom:0.5mm">⏰ '+escH(slotL)+'　'+escH(c.route)+'</div>';
+    items+='<div style="font-size:8pt;margin-bottom:1mm">📋 看診：'+rocDateStr(c.visitDate)+'　醫囑 '+c.days+' 天</div>';
+    items+='<div style="font-size:6.5pt;color:#374151;line-height:1.6">在校給藥日：'+daysHtml+'</div>';
+    items+='</div></div>';
+  });
+  var w=window.open("","_blank");
+  w.document.write('<!DOCTYPE html><html><head><meta charset="utf-8"><title>藥袋標籤</title>'
+    +'<style>@page{margin:8mm}*{box-sizing:border-box;margin:0;padding:0}'
+    +'body{font-family:"Microsoft JhengHei",sans-serif;padding:0}'
+    +'h2{font-size:11pt;color:#1A4B7C;margin-bottom:4mm;text-align:center}'
+    +'.grid{display:flex;flex-wrap:wrap;gap:3mm}'
+    +'.lbl{border:1.5px solid #1A4B7C;border-radius:3mm;padding:3mm;width:calc(50% - 1.5mm);display:flex;gap:3mm;break-inside:avoid;page-break-inside:avoid}'
+    +'.lbl-qr{flex-shrink:0;width:26mm;display:flex;flex-direction:column;align-items:center;justify-content:flex-start}'
+    +'.lbl-qr svg{width:25mm!important;height:25mm!important;display:block}'
+    +'.lbl-info{flex:1;min-width:0}'
+    +'.cut{border-top:1px dashed #ccc;text-align:center;font-size:7pt;color:#aaa;padding:2mm 0;margin-bottom:3mm}'
+    +'@media print{.no-print{display:none}.cut{border-top:1px dashed #bbb}}</style></head><body>'
+    +'<h2>臺北市廣慈托嬰中心　藥袋標籤（共 '+active.length+' 筆）</h2>'
+    +'<div class="cut">✂ 請沿虛線剪下後貼於藥袋上</div>'
+    +'<div class="grid">'+items+'</div>'
+    +'<div class="no-print" style="text-align:center;margin-top:6mm">'
+    +'<button onclick="window.print()" style="padding:8px 24px;cursor:pointer;background:#1A4B7C;color:#fff;border:none;border-radius:6px;font-size:12pt;font-family:inherit">🖨 列印所有標籤</button>'
+    +'</div></body></html>');
   w.document.close();w.focus();
 }
 
