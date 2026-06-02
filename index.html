@@ -1258,24 +1258,27 @@ function clearScan(){var el=document.getElementById("scan-input");if(el)el.value
 
 // ── ONE-TAP CONFIRM ───────────────────────────────────────────────────────────
 var confirmEid=null;
+var cmStudentVerified=false;
 function openConfirm(eid){
   confirmEid=eid;
+  cmStudentVerified=false;
   var e=entries.find(function(x){return x.id===eid;});if(!e)return;
   var mn=e.medName||(e.hasPowder&&e.hasTopical?"藥粉+外用":e.hasPowder?"僅藥粉":e.hasTopical?"僅外用":"");
   var slotL=e.slots.map(function(k){var s=SLOTS.find(function(x){return x.k===k;});return s?s.l:k;}).join("、");
   var overlay=document.createElement("div");
   overlay.id="cm-overlay";
   overlay.style.cssText="position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,.5);z-index:9999;display:flex;align-items:center;justify-content:center;padding:16px";
+  var relayMode=!!(sbUrl&&sbKey);
   overlay.innerHTML='<div style="background:#fff;border-radius:16px;padding:20px;max-width:500px;width:100%;max-height:90vh;overflow-y:auto">'
     +'<div style="font-size:16px;font-weight:500;color:#1A4B7C;margin-bottom:14px">⚡ 三讀五對核對確認</div>'
-    +'<div id="cm-scan-step" style="background:#FEF3C7;border-radius:8px;padding:12px;margin-bottom:14px;border:.5px solid #F59E0B">'
-    +'<div style="font-size:13px;font-weight:500;color:#B45309;margin-bottom:8px">第一步：掃描學生 QR Code 確認身份</div>'
+    +'<div id="cm-scan-step" style="background:#EEF2FF;border-radius:8px;padding:12px;margin-bottom:14px;border:1.5px solid #7C3AED">'
+    +'<div style="font-size:13px;font-weight:600;color:#7C3AED;margin-bottom:8px">第一步：確認學生身份</div>'
+    +(relayMode?'<div style="background:#7C3AED;color:#fff;border-radius:6px;padding:8px 12px;font-size:14px;font-weight:500;text-align:center;margin-bottom:8px">📱 手機掃描學生名牌 QR Code</div>':'')
     +'<div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">'
-    +'<input class="inp" id="cm-scan-input" placeholder="掃描學生 QR Code..." style="flex:1;min-width:150px;font-size:13px" oninput="cmVerifyInput()" onkeydown="if(event.key==\'Enter\')cmVerifyInput()">'
-    +'<button onclick="cmOpenCamera()" style="padding:6px 12px;border-radius:8px;border:none;background:#2E75B6;color:#fff;cursor:pointer;font-size:16px;font-family:inherit" title="系統內相機">📷</button>'
-
+    +'<input class="inp" id="cm-scan-input" placeholder="'+(relayMode?'或手動輸入 / 電腦掃描...':'掃描學生 QR Code...')+'" style="flex:1;min-width:150px;font-size:13px" oninput="cmVerifyInput()" onkeydown="if(event.key==\'Enter\')cmVerifyInput()">'
+    +'<button onclick="cmOpenCamera()" style="padding:6px 12px;border-radius:8px;border:none;background:#2E75B6;color:#fff;cursor:pointer;font-size:16px;font-family:inherit" title="電腦內建相機">📷</button>'
     +'</div>'
-    +'<div id="cm-scan-status" style="font-size:12px;margin-top:6px;color:#7C3AED">📱 請用手機原生相機掃學生名牌 QR Code</div>'
+    +'<div id="cm-scan-status" style="font-size:12px;margin-top:6px;color:#7C3AED">'+(relayMode?'📡 等待手機掃描中...':'📱 用手機原生相機掃學生名牌')+'</div>'
     +'</div>'
     +'<div style="background:#F0FDF4;border-radius:8px;padding:12px;margin-bottom:12px">'
     +'<div style="font-size:13px;font-weight:500;color:#15803d;margin-bottom:8px">【五對確認】請逐項核對</div>'
@@ -1303,16 +1306,11 @@ function openConfirm(eid){
     +'<button class="btn btn-green" style="flex:2" onclick="doConfirm()">✓ 確認完成三讀五對</button>'
     +'</div></div>';
   document.body.appendChild(overlay);
-  // Don't close by clicking outside - must complete student scan first
-  // overlay.addEventListener("click",function(ev){if(ev.target===overlay)closeConfirm();});
+  if(sbUrl&&sbKey) setTimeout(function(){startRelayStudentListen();},200);
 }
-function closeConfirm(){var m=document.getElementById("cm-overlay");if(m)m.remove();confirmEid=null;}
+function closeConfirm(){var m=document.getElementById("cm-overlay");if(m)m.remove();confirmEid=null;cmStudentVerified=false;relayStopListen();}
 function doConfirm(){
-  // Check student scan verified
-  var scanStep=document.getElementById("cm-scan-step");
-  if(scanStep&&scanStep.style.display!=="none"){
-    alert("請先掃描學生 QR Code 確認身份");return;
-  }
+  if(!cmStudentVerified){alert("請先用手機掃描學生名牌 QR Code 確認身份");return;}
   var chk=document.getElementById("cm-chk");
   if(!chk||!chk.checked){alert("請先勾選確認已完成三讀核對");return;}
   var prep=(document.getElementById("cm-prep")||{value:""}).value||"";
@@ -1415,12 +1413,12 @@ function cmOnResult(val){
   var inp=document.getElementById("cm-scan-input");
   if(scannedId){
     if(scannedId===e.studentId){
-      // Match! Hide scan step and show success
+      cmStudentVerified=true;
       var step=document.getElementById("cm-scan-step");
       if(step){
         step.style.background="#E8F5EE";
         step.style.borderColor="#86efac";
-        step.innerHTML='<div style="color:#15803d;font-size:13px;font-weight:500">✓ 學生身份確認：'+escH(e.studentName)+'</div>';
+        step.innerHTML='<div style="color:#15803d;font-size:14px;font-weight:600">✅ 學生身份確認：'+escH(e.studentName)+'</div>';
       }
     } else {
       // Wrong student!
