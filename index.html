@@ -2140,8 +2140,8 @@ if(students.length===0&&sbUrl&&sbKey){
     }
   },800);
 
-  // Handle locally too
-  setTimeout(function(){ handleScan(decoded); },300);
+  // 只有電腦端（有學生資料）才在本機處理，手機中繼不處理
+  if(students.length>0) setTimeout(function(){ handleScan(decoded); },300);
 })();
 // Pre-warm QR cache for all students in background
 setTimeout(function(){
