@@ -2140,8 +2140,7 @@ if(students.length===0&&sbUrl&&sbKey){
     }
   },800);
 
-  // 只有電腦端（有學生資料）才在本機處理，手機中繼不處理
-  if(students.length>0) setTimeout(function(){ handleScan(decoded); },300);
+  // 手機為中繼傳送器，僅送至 Supabase，不在本機處理
 })();
 // Pre-warm QR cache for all students in background
 setTimeout(function(){
